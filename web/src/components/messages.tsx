@@ -1,38 +1,41 @@
-import { useState } from "react";
-import { ArrowUp } from "lucide-react";
+import { useParams } from 'react-router-dom'
+import { Message } from '../components/message'
+import { getRoomMessages } from '../http/get-room-messages'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useMessagesWebSockets } from "../hooks/use-messages-web-sockets";
 
-interface MessageProps {
- text: string
- amountOfReactions: number
- answered?: boolean
-}
+export function Messages() {
 
-export function Message({ text, amountOfReactions, answered = false }: MessageProps) {
- const [ hasReacted, setHasReacted ] = useState(false)
+ const { roomId } = useParams()
 
- function handleReactToMessage() {
-  setHasReacted(true)
- }
+ if (!roomId) {
+    throw new Error('Messages components must be used within room page')
+  }
+
+  const { data } = useSuspenseQuery({
+    queryKey: ['messages', roomId],
+    queryFn: () => getRoomMessages({ roomId }),
+  })
+
+  useMessagesWebSockets({ roomId })
+
+  const sortedMessages = data.messages.sort((a, b) => {
+    return b.amountOfReactions - a.amountOfReactions
+  })
 
  return (
-    <li data-answered={answered} className='ml-4 leading-relaxed text-zinc-100 data-[answered=true]:opacity-50 data-[answered=true]:pointer-events-none'>
-     {text}
-
-    {hasReacted ? (
-     <button type='button' className='mt-3 flex items-center gap-2 text-orange-400 text-sm font-medium hover:text-orange-500'>
-      <ArrowUp className='size-4' />
-      Curtir pergunta ({amountOfReactions})
-     </button>
-    ) : (
-     <button 
-      onClick={handleReactToMessage}
-      type='button'
-      className='mt-3 flex items-center gap-2 text-zinc-400 text-sm font-medium hover:text-zinc-300'
-     >
-      <ArrowUp className='size-4' />
-      Curtir pergunta ({amountOfReactions})
-     </button>
-    )}
-  </li>
+    <ol className='list-decimal list-outside px-3 space-y-8'>
+     {sortedMessages.map(message => {
+      return (
+        <Message 
+        key={message.id}
+        id={message.id}
+        text={message.text}
+        amountOfReactions={message.amountOfReactions} 
+        answered={message.answered} 
+      />
+      )
+     })}
+    </ol>
  )
 }
